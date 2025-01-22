@@ -151,7 +151,6 @@
 
         performWaterSpill(sourceTubeIdx, targetTubeIdx, spillCount) {
           //   console.log("SPILL THAT WATER!!!", spillCount);
-
           const selectedTube = this.getTubeElement(sourceTubeIdx);
           const targetTube = this.getTubeElement(targetTubeIdx);
 
@@ -188,8 +187,9 @@
                 { height: "25%", duration: 0.5 }
               );
               // old water draining
-              waterTl.to(
+              waterTl.fromTo(
                 `.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx - count}`,
+                { height: "25%" },
                 { height: "0%", duration: 0.5 },
                 "<"
               );
