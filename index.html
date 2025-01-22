@@ -12,49 +12,159 @@
         background-color: #000;
         color: #eee;
       }
-      .water-tube {
-        width: 50px;
-        height: 200px;
-        border: 1px solid #eee;
-        transform: rotate(180deg);
+      main {
+        border: 1px solid;
+        text-align: center;
+        padding-top: 200px;
       }
+      .water-tube {
+        display: inline-block;
+        width: 50px;
+        height: 150px;
+        border: 1px solid;
+        /* transform: rotate(180deg); */
+        margin: 16px;
+      }
+
+      .water-tube.selected {
+        border: 6px solid #999;
+      }
+
       .water {
         background-color: yellowgreen;
         width: 100%;
-        height: 0%;
+        height: 25%;
       }
     </style>
   </head>
   <body>
     <main>
-      <div class="water-tube">
+      <!-- <div class="water-tube">
         <div class="water"></div>
       </div>
 
-      <button id="fill-tube-btn">Fill Tube</button>
+      <button id="fill-tube-btn">Fill Tube</button> -->
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
     <script>
-      //   document.addEventListener("DOMContentLoaded", (ev) => {
-      //   });
+      class View {
+        canvas;
 
-      const fillTubeBtn = document.querySelector("#fill-tube-btn");
-
-      console.log(window.gsap);
-
-      let waterMark = 0;
-      const WATER_INCR = 25;
-
-      fillTubeBtn.onclick = () => {
-        if (waterMark < 100) {
-          waterMark += WATER_INCR;
-          gsap.to(".water", { height: waterMark + "%" });
-        } else {
-          console.log("DONE!");
-          gsap.to(".water", { background: "dodgerblue" });
+        constructor() {
+          this.canvas = document.querySelector("main");
         }
-      };
+
+        drawTube(waters, idx) {
+          const tube = document.createElement("div");
+          tube.classList.add(`water-tube`);
+          tube.classList.add(`water-tube-${idx}`);
+          tube.dataset.idx = idx;
+
+          waters.forEach((color, i) => {
+            if (color) this.#drawWater(tube, color, i);
+          });
+
+          this.canvas.append(tube);
+        }
+
+        #drawWater(tube, color, idx) {
+          const water = document.createElement("div");
+          water.classList.add("water");
+          water.classList.add(`water-${idx}`);
+          water.style.backgroundColor = color;
+          water.dataset.idx = idx;
+
+          tube.append(water);
+        }
+
+        getAllTubeElements() {
+          return [...document.querySelectorAll(`.water-tube`)];
+        }
+
+        /**
+         * @param tubeIdx {number}
+         * @returns {HTMLDivElement}
+         **/
+        getTubeElement(tubeIdx) {
+          return document.querySelector(`.water-tube-${tubeIdx}`);
+        }
+
+        /**
+         * @param tubeIdx {number}
+         * @param waterIdx {number}
+         * @returns {HTMLDivElement}
+         * */
+        getWaterElement(tubeIdx, waterIdx) {
+          return document.querySelector(`.water-tube-${tubeIdx} .water-${waterIdx}`);
+        }
+
+        /** @param selectedTubeIdx {number | null}  */
+        updateSelectedTube(selectedTubeIdx) {
+          this.getAllTubeElements().forEach((ele) => {
+            const eleIdx = Number(ele.dataset.idx);
+            if (selectedTubeIdx == null || eleIdx != selectedTubeIdx) {
+              ele.classList.remove("selected");
+            }
+            if (eleIdx == selectedTubeIdx) {
+              ele.classList.add("selected");
+            }
+          });
+
+          //   const tube = this.getTubeElement(selectedTubeIdx);
+          //   console.log(selectedTubeIdx, tube);
+        }
+      }
+
+      class Controller {
+        game;
+        view;
+        selectedTubeIdx = null;
+
+        constructor(game) {
+          this.game = game;
+          this.view = new View();
+
+          this.game.forEach((tubeColors, idx) => {
+            this.view.drawTube(tubeColors, idx);
+            const tubeEl = this.view.getTubeElement(idx);
+            tubeEl.addEventListener("click", this.#onTubeClick.bind(this));
+          });
+        }
+
+        #onTubeClick(ev) {
+          const tubeEl = ev.target.closest(".water-tube");
+          const tubeIdx = Number(tubeEl.dataset.idx);
+
+          if (this.selectedTubeIdx === null) {
+            this.selectedTubeIdx = tubeIdx;
+          } else {
+            if (this.selectedTubeIdx === tubeIdx) {
+              this.selectedTubeIdx = null;
+            } else {
+              // if (canSpillWater) {
+              // performSpill()
+              // this.selectedTubeIdx = null
+              // } else {
+              this.selectedTubeIdx = tubeIdx;
+              // }
+            }
+          }
+          this.view.updateSelectedTube(this.selectedTubeIdx);
+          //   console.log({ ev, tubeEl, tubeIdx, v: this.view });
+          console.log(this.selectedTubeIdx);
+        }
+      }
+
+      const controller = new Controller([
+        ["red", "red", "red", "red"],
+        ["green", "green", "green", "green"],
+        ["blue", "blue", "blue", "blue"],
+        [null, null, null, null],
+      ]);
+
+      //   console.log(view.getTubeElement(0));
+      //   console.log(view.getWaterElement(0, 2));
     </script>
   </body>
 </html>
