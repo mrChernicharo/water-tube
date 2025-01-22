@@ -222,7 +222,7 @@
 
           gsap.fromTo(
             `.water-tube-${sourceTubeIdx}`,
-            { position: "fixed" },
+            { position: "fixed", zIndex: 100 },
             { top: `${hookPoint.y}`, left: `${hookPoint.x}px` }
           );
 
@@ -245,6 +245,7 @@
           gsap.to(`.water-tube-${sourceTubeIdx}`, {
             delay: 2,
             position: "unset",
+            zIndex: 1,
           });
         }
 
