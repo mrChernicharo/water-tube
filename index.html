@@ -14,15 +14,31 @@
       }
       main {
         border: 1px solid;
-        text-align: center;
         padding-top: 200px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
       }
 
       .tube-container {
         position: relative;
-        display: inline-block;
         border: 1px solid red;
         padding: 16px;
+        width: 50px;
+        height: 150px;
+        flex-shrink: 0;
+      }
+      .water-tube {
+        width: 100%;
+        height: 100%;
+        border: 1px solid;
+        display: flex;
+        /* flex-direction: column;
+        transform: rotate(180deg); */
+        flex-direction: column-reverse;
+      }
+      .water-tube.selected {
+        box-shadow: 0px 0px 24px #999;
       }
 
       .hook-point {
@@ -31,23 +47,14 @@
         background-color: #999;
         position: absolute;
         left: 50%;
-        transform: translate(-50%, 0);
-        top: -42px;
-      }
-
-      .water-tube {
-        width: 50px;
-        height: 150px;
-        border: 1px solid;
-      }
-      .water-tube.selected {
-        box-shadow: 0px 0px 24px #999;
+        transform: translate(-50%, -40px);
+        /* top: -42px; */
       }
 
       .water {
-        background-color: yellowgreen;
         width: 100%;
         height: 25%;
+        border: 1px dashed #999;
       }
     </style>
   </head>
@@ -88,6 +95,7 @@
 
           waters.forEach((color, i) => {
             if (color) this.#drawWater(tube, color, i);
+            // this.#drawWater(tube, color || "transparent", i);
           });
 
           this.canvas.append(tubeContainer);
@@ -97,8 +105,10 @@
           const water = document.createElement("div");
           water.classList.add("water");
           water.classList.add(`water-${idx}`);
+          water.classList.add(color);
           water.style.backgroundColor = color;
           water.dataset.idx = idx;
+          water.dataset.color = color;
 
           tube.append(water);
         }
@@ -122,10 +132,22 @@
         /**
          * @param tubeIdx {number}
          * @param waterIdx {number}
-         * @returns {HTMLDivElement}
+         * @returns {HTMLDivElement | null}
          * */
         getWaterElement(tubeIdx, waterIdx) {
           return document.querySelector(`.water-tube-${tubeIdx} .water-${waterIdx}`);
+        }
+
+        getTopWater(tubeIdx) {
+          let i = 0;
+          while (i < 4) {
+            const waterEl = this.getWaterElement(tubeIdx, i);
+            if (waterEl) {
+              return { idx: i, element: waterEl, color: waterEl.dataset.color };
+            }
+            i++;
+          }
+          return { idx: -1, element: null, color: null };
         }
 
         /** @param selectedTubeIdx {number | null}  */
@@ -135,7 +157,6 @@
               transform: "translateY(0px)",
               duration: 0.2,
             });
-
             const eleIdx = Number(ele.dataset.idx);
             if (selectedTubeIdx == null || eleIdx != selectedTubeIdx) {
               ele.classList.remove("selected");
@@ -143,15 +164,11 @@
             if (eleIdx == selectedTubeIdx) {
               ele.classList.add("selected");
             }
-
             gsap.to(".selected", {
               transform: "translateY(-20px)",
               duration: 0.2,
             });
           });
-
-          //   const tube = this.getTubeElement(selectedTubeIdx);
-          //   console.log(selectedTubeIdx, tube);
         }
       }
 
@@ -172,8 +189,8 @@
         }
 
         async #onTubeClick(ev) {
-          const tubeEl = ev.target.closest(".water-tube");
-          const tubeIdx = Number(tubeEl.dataset.idx);
+          const targetTube = ev.target.closest(".water-tube");
+          const tubeIdx = Number(targetTube.dataset.idx);
 
           if (this.selectedTubeIdx === null) {
             this.selectedTubeIdx = tubeIdx;
@@ -181,16 +198,29 @@
             if (this.selectedTubeIdx === tubeIdx) {
               this.selectedTubeIdx = null;
             } else {
-              // if (canSpillWater) {
-              // performSpill()
-              // this.selectedTubeIdx = null
-              // } else {
-              this.selectedTubeIdx = tubeIdx;
-              // }
+              const selectedTube = this.view.getTubeElement(this.selectedTubeIdx);
+              const selectedTubeWater = this.view.getTopWater(this.selectedTubeIdx);
+              const targetTopWater = this.view.getTopWater(tubeIdx);
+
+              const tubeAHasWater = selectedTubeWater.idx >= 0;
+              const tubeBHasSpace = targetTopWater.idx < 3;
+              const tubeBIsEmpty = targetTopWater.idx < 0;
+              const areColorsEqual = targetTopWater.color == selectedTubeWater.color;
+
+              const canSpillWater = tubeAHasWater && tubeBHasSpace && (areColorsEqual || tubeBIsEmpty);
+              //   console.log({ selectedTube, targetTube, selectedTubeWater, targetTopWater, canSpillWater });
+
+              if (canSpillWater) {
+                console.log("SPILL THAT WATER", { tubeAHasWater, tubeBHasSpace, tubeBIsEmpty, areColorsEqual });
+                // await performSpill()
+                // console.log({ ev, tubeEl, tubeIdx, v: this.view, targetTopWater });
+                this.selectedTubeIdx = null;
+              } else {
+                this.selectedTubeIdx = tubeIdx;
+              }
             }
           }
           this.view.updateSelectedTube(this.selectedTubeIdx);
-          //   console.log({ ev, tubeEl, tubeIdx, v: this.view });
           //   console.log(this.selectedTubeIdx);
         }
       }
@@ -200,6 +230,8 @@
         ["green", "green", "green", "green"],
         ["blue", "blue", "blue", "blue"],
         [null, null, null, null],
+        ["orange", "orange", null, null],
+        ["orange", "orange", null, null],
       ]);
 
       //   console.log(view.getTubeElement(0));
