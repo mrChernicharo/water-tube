@@ -39,9 +39,13 @@
         flex-direction: column-reverse;
         border-radius: 0 0 10px 10px;
         overflow: hidden;
+        cursor: pointer;
       }
       .water-tube.selected {
         box-shadow: 0px 0px 24px #999;
+      }
+      .water-tube.locked {
+        pointer-events: none;
       }
       .hook-point {
         width: 6px;
@@ -55,7 +59,7 @@
       .water {
         width: 100%;
         height: 25%;
-        /* border: 1px dashed #999; */
+        border: 1px dashed #999;
       }
     </style>
   </head>
@@ -145,8 +149,9 @@
           return { idx: -1, element: null, color: null };
         }
 
-        performWaterSpill(sourceTubeIdx, targetTubeIdx) {
-          //   console.log("SPILL THAT WATER!!!");
+        performWaterSpill(sourceTubeIdx, targetTubeIdx, spillCount) {
+          //   console.log("SPILL THAT WATER!!!", spillCount);
+
           const selectedTube = this.getTubeElement(sourceTubeIdx);
           const targetTube = this.getTubeElement(targetTubeIdx);
 
@@ -159,19 +164,38 @@
           const targetTopWater = this.getTopWater(targetTubeIdx);
 
           const animateWaterSwap = () => {
-            this.drawWater(targetTube, selectedTubeWater.color, targetTopWater.idx + 1);
+            const waterTl = gsap.timeline({
+              defaults: { ease: "linear" },
+              onComplete: () => {
+                let count = 0;
+                while (count < spillCount) {
+                  const topWater = this.getTopWater(sourceTubeIdx);
+                  topWater.element.remove();
+                  count++;
+                }
+              },
+            });
 
-            newTopWater = this.getTopWater(targetTubeIdx);
+            let count = 0;
+            while (count < spillCount) {
+              this.drawWater(targetTube, selectedTubeWater.color, targetTopWater.idx + 1 + count);
+              newTopWater = this.getTopWater(targetTubeIdx);
 
-            const waterTl = gsap.timeline();
-            // new water filling
-            waterTl.fromTo(
-              `.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`,
-              { height: "0%" },
-              { height: "25%" }
-            );
-            // old water draining
-            waterTl.to(`.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx}`, { height: "0%" }, "<-=0.1");
+              // new water filling
+              waterTl.fromTo(
+                `.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`,
+                { height: "0%" },
+                { height: "25%", duration: 0.5 }
+              );
+              // old water draining
+              waterTl.to(
+                `.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx - count}`,
+                { height: "0%", duration: 0.5 },
+                "<"
+              );
+
+              count++;
+            }
           };
 
           const animateWaterTube = (tl) => {
@@ -182,7 +206,7 @@
               { top: `${hookPoint.y}`, left: `${hookPoint.x}px`, duration: 0.5 }
             );
             // spill start
-            tl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(-104deg)", duration: 0.75 }, ">-=0.2");
+            tl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(-104deg)", duration: 0.5 * spillCount }, ">");
             // spill end
             tl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(0deg)", duration: 0.5 }, ">");
             // back to initial tube position
@@ -217,7 +241,7 @@
               }
               if (endWaterChange) {
                 endedSpilling = true;
-                selectedTubeWater.element.remove();
+                // selectedTubeWater.element.remove();
               }
             },
           });
@@ -266,6 +290,8 @@
             const tubeEl = this.view.getTubeElement(idx);
             tubeEl.addEventListener("click", this.#onTubeClick.bind(this));
           });
+
+          document.addEventListener("click", this.#handleTubeDeselect.bind(this));
         }
 
         canSpillWater(sourceTubeIdx, targetTubeIdx) {
@@ -284,6 +310,42 @@
           return canSpillWater;
         }
 
+        #getSpillCount(sourceTubeIdx, targetTubeIdx) {
+          const selectedTube = this.view.getTubeElement(sourceTubeIdx);
+          const targetTube = this.view.getTubeElement(targetTubeIdx);
+          const selectedTubeWater = this.view.getTopWater(sourceTubeIdx);
+          const targetTopWater = this.view.getTopWater(targetTubeIdx);
+          //   let count = 0;
+
+          let spillCount = 0;
+          let sourceColor = "";
+
+          for (const water of [...selectedTube.children].reverse()) {
+            if (!sourceColor) {
+              sourceColor = water.dataset.color;
+              spillCount++;
+            } else {
+              const tubeBIsEmpty = targetTopWater.idx < 0;
+              const areColorsEqual = targetTopWater.color === sourceColor;
+
+              if (water.dataset.color === sourceColor && (areColorsEqual || tubeBIsEmpty)) {
+                spillCount++;
+              } else {
+                break;
+              }
+            }
+          }
+          return spillCount;
+        }
+
+        #handleTubeDeselect(ev) {
+          const clickedTube = ev.composedPath().some((el) => el?.classList?.contains("water-tube"));
+          if (!clickedTube) {
+            this.selectedTubeIdx = null;
+            this.view.handleTubeSelection(null);
+          }
+        }
+
         #onTubeClick(ev) {
           const targetTube = ev.target.closest(".water-tube");
           const targetTubeIdx = Number(targetTube.dataset.idx);
@@ -295,7 +357,8 @@
           else if (this.selectedTubeIdx === targetTubeIdx) this.selectedTubeIdx = null;
           //
           else if (this.canSpillWater(this.selectedTubeIdx, targetTubeIdx)) {
-            this.view.performWaterSpill(this.selectedTubeIdx, targetTubeIdx);
+            const spillCount = this.#getSpillCount(this.selectedTubeIdx, targetTubeIdx);
+            this.view.performWaterSpill(this.selectedTubeIdx, targetTubeIdx, spillCount);
             this.selectedTubeIdx = null;
           }
           //
@@ -308,8 +371,8 @@
       }
 
       const controller = new Controller([
-        ["orange", null, null, null],
-        ["orange", null, null, null],
+        [null, null, null, null],
+        ["orange", "orange", null, null],
         ["orange", "orange", null, null],
         ["red", "green", "red", null],
         ["green", "blue", "green", "red"],
