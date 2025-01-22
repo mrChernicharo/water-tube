@@ -29,8 +29,10 @@
         flex-shrink: 0;
       }
       .water-tube {
-        width: 100%;
-        height: 100%;
+        /* width: 100%;
+        height: 100%; */
+        width: 50px;
+        height: 150px;
         border: 1px solid;
         display: flex;
         /* flex-direction: column;
@@ -150,6 +152,8 @@
           return { idx: -1, element: null, color: null };
         }
 
+        performWaterSpill(tubeA, tubeB) {}
+
         /** @param selectedTubeIdx {number | null}  */
         updateSelectedTube(selectedTubeIdx) {
           this.getAllTubeElements().forEach((ele) => {
@@ -188,40 +192,99 @@
           });
         }
 
+        canSpillWater(sourceTubeIdx, targetTubeIdx) {
+          const selectedTube = this.view.getTubeElement(sourceTubeIdx);
+          const selectedTubeWater = this.view.getTopWater(sourceTubeIdx);
+          const targetTopWater = this.view.getTopWater(targetTubeIdx);
+
+          const tubeAHasWater = selectedTubeWater.idx >= 0;
+          const tubeBHasSpace = targetTopWater.idx < 3;
+          const tubeBIsEmpty = targetTopWater.idx < 0;
+          const areColorsEqual = targetTopWater.color == selectedTubeWater.color;
+
+          const canSpillWater = tubeAHasWater && tubeBHasSpace && (areColorsEqual || tubeBIsEmpty);
+
+          //   console.log("canSpillWater", { tubeAHasWater, tubeBHasSpace, tubeBIsEmpty, areColorsEqual });
+
+          return canSpillWater;
+        }
+
+        async #performWaterSpill(sourceTubeIdx, targetTubeIdx) {
+          const selectedTube = this.view.getTubeElement(sourceTubeIdx);
+          const targetTube = this.view.getTubeElement(targetTubeIdx);
+
+          const targetHookPoint = targetTube.parentElement.children.item(0);
+
+          const startPoint = selectedTube.getBoundingClientRect();
+          const hookPoint = targetHookPoint.getBoundingClientRect();
+
+          //   console.log({ targetTube, targetHookPoint, hookPoint });
+
+          gsap.fromTo(
+            `.water-tube-${sourceTubeIdx}`,
+            { position: "fixed" },
+            { top: `${hookPoint.y}`, left: `${hookPoint.x}px` }
+          );
+
+          gsap.to(`.water-tube-${sourceTubeIdx}`, {
+            delay: 0.3,
+            transformOrigin: "top center",
+            transform: "rotate(-45deg)",
+          });
+
+          gsap.to(`.water-tube-${sourceTubeIdx}`, {
+            delay: 1,
+            transform: "rotate(0deg)",
+          });
+
+          gsap.to(`.water-tube-${sourceTubeIdx}`, {
+            delay: 1.3,
+            top: `${startPoint.y}`,
+            left: `${startPoint.x}px`,
+          });
+          gsap.to(`.water-tube-${sourceTubeIdx}`, {
+            delay: 2,
+            position: "unset",
+          });
+        }
+
         async #onTubeClick(ev) {
           const targetTube = ev.target.closest(".water-tube");
-          const tubeIdx = Number(targetTube.dataset.idx);
+          const targetTubeIdx = Number(targetTube.dataset.idx);
 
-          if (this.selectedTubeIdx === null) {
-            this.selectedTubeIdx = tubeIdx;
+          if (this.selectedTubeIdx == null) {
+            this.selectedTubeIdx = targetTubeIdx;
           } else {
-            if (this.selectedTubeIdx === tubeIdx) {
+            if (this.selectedTubeIdx == targetTubeIdx) {
               this.selectedTubeIdx = null;
             } else {
-              const selectedTube = this.view.getTubeElement(this.selectedTubeIdx);
-              const selectedTubeWater = this.view.getTopWater(this.selectedTubeIdx);
-              const targetTopWater = this.view.getTopWater(tubeIdx);
-
-              const tubeAHasWater = selectedTubeWater.idx >= 0;
-              const tubeBHasSpace = targetTopWater.idx < 3;
-              const tubeBIsEmpty = targetTopWater.idx < 0;
-              const areColorsEqual = targetTopWater.color == selectedTubeWater.color;
-
-              const canSpillWater = tubeAHasWater && tubeBHasSpace && (areColorsEqual || tubeBIsEmpty);
-              //   console.log({ selectedTube, targetTube, selectedTubeWater, targetTopWater, canSpillWater });
-
-              if (canSpillWater) {
-                console.log("SPILL THAT WATER", { tubeAHasWater, tubeBHasSpace, tubeBIsEmpty, areColorsEqual });
-                // await performSpill()
+              if (this.canSpillWater(this.selectedTubeIdx, targetTubeIdx)) {
+                console.log("SPILL THAT WATER!!!");
+                await this.#performWaterSpill(this.selectedTubeIdx, targetTubeIdx);
                 // console.log({ ev, tubeEl, tubeIdx, v: this.view, targetTopWater });
                 this.selectedTubeIdx = null;
               } else {
-                this.selectedTubeIdx = tubeIdx;
+                this.selectedTubeIdx = targetTubeIdx;
               }
             }
           }
+
+          //   if (this.selectedTubeIdx === null) this.selectedTubeIdx = targetTubeIdx;
+          //   //
+          //   else if (this.selectedTubeIdx === targetTubeIdx) this.selectedTubeIdx = null;
+          //   //
+          //   else if (this.canSpillWater(this.selectedTubeIdx, targetTubeIdx)) {
+          //     console.log("SPILL THAT WATER!!!");
+          //     // await performSpill()
+          //     // console.log({ ev, tubeEl, tubeIdx, v: this.view, targetTopWater });
+          //     this.selectedTubeIdx = null;
+          //   }
+          //   //
+          //   else {
+          //     this.selectedTubeIdx = targetTubeIdx;
+          //   }
+
           this.view.updateSelectedTube(this.selectedTubeIdx);
-          //   console.log(this.selectedTubeIdx);
         }
       }
 
@@ -232,6 +295,7 @@
         [null, null, null, null],
         ["orange", "orange", null, null],
         ["orange", "orange", null, null],
+        ["purple", "purple", "purple", null],
       ]);
 
       //   console.log(view.getTubeElement(0));
