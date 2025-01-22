@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Water tube</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background-color: #000;
+        color: #eee;
+      }
+      .water-tube {
+        width: 50px;
+        height: 200px;
+        border: 1px solid #eee;
+        transform: rotate(180deg);
+      }
+      .water {
+        background-color: yellowgreen;
+        width: 100%;
+        height: 0%;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="water-tube">
+        <div class="water"></div>
+      </div>
+
+      <button id="fill-tube-btn">Fill Tube</button>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
+    <script>
+      //   document.addEventListener("DOMContentLoaded", (ev) => {
+      //   });
+
+      const fillTubeBtn = document.querySelector("#fill-tube-btn");
+
+      console.log(window.gsap);
+
+      let waterMark = 0;
+      const WATER_INCR = 25;
+
+      fillTubeBtn.onclick = () => {
+        if (waterMark < 100) {
+          waterMark += WATER_INCR;
+          gsap.to(".water", { height: waterMark + "%" });
+        } else {
+          console.log("DONE!");
+          gsap.to(".water", { background: "dodgerblue" });
+        }
+      };
+    </script>
+  </body>
+</html>
