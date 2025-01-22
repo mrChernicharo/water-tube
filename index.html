@@ -28,23 +28,21 @@
         flex-shrink: 0;
       }
       .water-tube {
-        /* width: 100%;
-        height: 100%; */
         width: 50px;
         height: 150px;
         border: 2px solid;
         display: flex;
-        /* flex-direction: column;
-        transform: rotate(180deg); */
         flex-direction: column-reverse;
         border-radius: 0 0 10px 10px;
         overflow: hidden;
         cursor: pointer;
+        transition: box-shadow 0.3s;
+        z-index: 2;
       }
       .water-tube.selected {
-        box-shadow: 0px 0px 24px #999;
+        box-shadow: 0px 0px 36px #999;
       }
-      .water-tube.locked {
+      .water-tube.spilling {
         pointer-events: none;
       }
       .hook-point {
@@ -59,7 +57,15 @@
       .water {
         width: 100%;
         height: 25%;
-        border: 1px dashed #999;
+        z-index: 2;
+        /* border: 1px dashed #999; */
+      }
+      .trickle {
+        position: fixed;
+        width: 8px;
+        height: calc(150px + 42px);
+        border: 1px dotted #999;
+        z-index: 1;
       }
     </style>
   </head>
@@ -68,6 +74,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
     <script>
+      const SPILL_DUR = 0.6;
+
       class View {
         canvas;
 
@@ -94,7 +102,6 @@
 
           waters.forEach((color, i) => {
             if (color) this.drawWater(tube, color, i);
-            // this.#drawWater(tube, color || "transparent", i);
           });
 
           this.canvas.append(tubeContainer);
@@ -106,6 +113,7 @@
           water.classList.add(`water-${idx}`);
           water.classList.add(color);
           water.style.backgroundColor = color;
+          //   water.style.zIndex = idx + 122; // <- so trickling-water appears behind water
           water.dataset.idx = idx;
           water.dataset.color = color;
 
@@ -155,6 +163,7 @@
           const targetTube = this.getTubeElement(targetTubeIdx);
 
           const targetHookPoint = targetTube.parentElement.children.item(0);
+          const selectedTubeContainer = selectedTube.parentElement;
 
           const startPoint = selectedTube.getBoundingClientRect();
           const hookPoint = targetHookPoint.getBoundingClientRect();
@@ -176,37 +185,74 @@
             });
 
             let count = 0;
+            let newTopWater;
             while (count < spillCount) {
+              const idx = targetTopWater.idx + 1 + count;
+              if (idx > 3) {
+                console.error("invalid idx", idx);
+              }
+              //   this.drawWater(targetTube, selectedTubeWater.color, idx + count);
               this.drawWater(targetTube, selectedTubeWater.color, targetTopWater.idx + 1 + count);
               newTopWater = this.getTopWater(targetTubeIdx);
-
               // new water filling
               waterTl.fromTo(
-                `.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`,
+                `.water-tube-${targetTubeIdx} .water-${newTopWater.idx + count}`,
                 { height: "0%" },
-                { height: "25%", duration: 0.5 }
+                { height: "25%", duration: SPILL_DUR }
               );
               // old water draining
               waterTl.fromTo(
                 `.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx - count}`,
                 { height: "25%" },
-                { height: "0%", duration: 0.5 },
+                { height: "0%", duration: SPILL_DUR },
                 "<"
               );
-
               count++;
             }
+
+            drawTricklingWater(newTopWater.color, spillCount * SPILL_DUR);
           };
 
-          const animateWaterTube = (tl) => {
+          const animateWaterTube = () => {
+            let startedSpilling = false;
+            let endedSpilling = false;
+
+            const tl = gsap.timeline({
+              onStart: () => {
+                selectedTube.classList.add("spilling");
+                targetTube.classList.add("receiving");
+              },
+              onComplete: () => {
+                selectedTube.classList.remove("spilling");
+                targetTube.classList.remove("receiving");
+              },
+              onUpdate: () => {
+                const elapsed = tl._time / tl._tDur;
+                const beginWaterChange = elapsed > 0.2 && !startedSpilling;
+                const endWaterChange = elapsed > 0.7 && !endedSpilling;
+
+                if (beginWaterChange) {
+                  startedSpilling = true;
+                  animateWaterSwap();
+                }
+                if (endWaterChange) {
+                  endedSpilling = true;
+                  // selectedTubeWater.element.remove();
+                }
+              },
+            });
             //  move tube to target
             tl.fromTo(
               `.water-tube-${sourceTubeIdx}`,
-              { position: "fixed", transformOrigin: "top center", zIndex: 100 },
+              { position: "fixed", transformOrigin: "top left" },
               { top: `${hookPoint.y}`, left: `${hookPoint.x}px`, duration: 0.5 }
             );
             // spill start
-            tl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(-104deg)", duration: 0.5 * spillCount }, ">");
+            tl.to(
+              `.water-tube-${sourceTubeIdx}`,
+              { transform: "rotate(-94deg)", duration: SPILL_DUR * spillCount },
+              ">"
+            );
             // spill end
             tl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(0deg)", duration: 0.5 }, ">");
             // back to initial tube position
@@ -216,36 +262,24 @@
               ">"
             );
             // animation end
-            tl.set(`.water-tube-${sourceTubeIdx}`, { position: "unset", zIndex: 1 }, ">");
+            tl.set(`.water-tube-${sourceTubeIdx}`, { position: "sticky" }, ">");
           };
 
-          let startedSpilling = false;
-          let endedSpilling = false;
-          let newTopWater = null;
+          const drawTricklingWater = (color, removeTimeout = SPILL_DUR) => {
+            const waterTrickle = document.createElement("div");
+            waterTrickle.classList.add("trickle");
+            waterTrickle.style.backgroundColor = color;
+            waterTrickle.style.top = hookPoint.y + "px";
+            waterTrickle.style.left = hookPoint.x + "px";
+            selectedTubeContainer.prepend(waterTrickle);
+            console.log("drawTricklingWater", [...selectedTubeContainer.children], color, removeTimeout);
 
-          const tubeTl = gsap.timeline({
-            onStart() {
-              selectedTube.classList.add("locked");
-            },
-            onComplete() {
-              selectedTube.classList.remove("locked");
-            },
-            onUpdate: () => {
-              const elapsed = tubeTl._time / tubeTl._tDur;
-              const beginWaterChange = elapsed > 0.2 && !startedSpilling;
-              const endWaterChange = elapsed > 0.6 && !endedSpilling;
+            setTimeout(() => {
+              waterTrickle.remove();
+            }, removeTimeout * 1000);
+          };
 
-              if (beginWaterChange) {
-                startedSpilling = true;
-                animateWaterSwap();
-              }
-              if (endWaterChange) {
-                endedSpilling = true;
-                // selectedTubeWater.element.remove();
-              }
-            },
-          });
-          animateWaterTube(tubeTl);
+          animateWaterTube();
         }
 
         /** @param selectedTubeIdx {number | null}  */
@@ -282,6 +316,11 @@
         selectedTubeIdx = null;
 
         constructor(game) {
+          game.forEach((tubeRow, i) => {
+            console.log(tubeRow);
+            if (tubeRow.length !== 4) throw Error("wonky row!", i);
+          });
+
           this.game = game;
           this.view = new View();
 
@@ -291,7 +330,7 @@
             tubeEl.addEventListener("click", this.#onTubeClick.bind(this));
           });
 
-          document.addEventListener("click", this.#handleTubeDeselect.bind(this));
+          document.addEventListener("click", this.#onWindowClick.bind(this));
         }
 
         canSpillWater(sourceTubeIdx, targetTubeIdx) {
@@ -306,7 +345,7 @@
           const areColorsEqual = targetTopWater.color == selectedTubeWater.color;
 
           const canSpillWater = tubeAHasWater && tubeBHasSpace && (areColorsEqual || tubeBIsEmpty);
-
+          //   console.log({ canSpillWater, tubeAHasWater, tubeBHasSpace, areColorsEqual });
           return canSpillWater;
         }
 
@@ -320,11 +359,15 @@
           let spillCount = 0;
           let sourceColor = "";
 
+          const tubeBSpaceLeft = 3 - targetTopWater.idx;
+
+          console.log({ tubeBSpaceLeft });
+
           for (const water of [...selectedTube.children].reverse()) {
             if (!sourceColor) {
               sourceColor = water.dataset.color;
               spillCount++;
-            } else {
+            } else if (spillCount < tubeBSpaceLeft) {
               const tubeBIsEmpty = targetTopWater.idx < 0;
               const areColorsEqual = targetTopWater.color === sourceColor;
 
@@ -338,7 +381,7 @@
           return spillCount;
         }
 
-        #handleTubeDeselect(ev) {
+        #onWindowClick(ev) {
           const clickedTube = ev.composedPath().some((el) => el?.classList?.contains("water-tube"));
           if (!clickedTube) {
             this.selectedTubeIdx = null;
@@ -349,8 +392,9 @@
         #onTubeClick(ev) {
           const targetTube = ev.target.closest(".water-tube");
           const targetTubeIdx = Number(targetTube.dataset.idx);
+          //   console.log("onTubeClick", { targetTube });
 
-          if (targetTube.classList.contains("locked")) return;
+          if (targetTube.classList.contains("spilling")) return;
 
           if (this.selectedTubeIdx === null) this.selectedTubeIdx = targetTubeIdx;
           //
@@ -366,19 +410,20 @@
             this.selectedTubeIdx = targetTubeIdx;
           }
 
+          //   console.log("onTubeClick", this.selectedTubeIdx);
           this.view.handleTubeSelection(this.selectedTubeIdx);
         }
       }
 
       const controller = new Controller([
-        [null, null, null, null],
+        ["red", "blue", "red", null],
+        ["purple", "orange", null, null],
         ["orange", "orange", null, null],
-        ["orange", "orange", null, null],
-        ["red", "green", "red", null],
+        ["red", "green", null, null],
         ["green", "blue", "green", "red"],
-        ["blue", "blue", "blue", "green"],
-        ["purple", "purple", "purple", null],
-        ["purple", "red", null, null],
+        ["blue", "green", "blue", null],
+        ["purple", "orange", "purple", null],
+        ["purple", null, null, null],
       ]);
     </script>
   </body>
