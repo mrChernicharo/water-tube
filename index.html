@@ -155,58 +155,119 @@
           const startPoint = selectedTube.getBoundingClientRect();
           const hookPoint = targetHookPoint.getBoundingClientRect();
 
-          selectedTube.classList.add("locked");
+          const selectedTubeWater = this.getTopWater(sourceTubeIdx);
+          const targetTopWater = this.getTopWater(targetTubeIdx);
+
           // move tube to target
-          gsap.fromTo(
-            `.water-tube-${sourceTubeIdx}`,
-            { position: "fixed", zIndex: 100 },
-            { top: `${hookPoint.y}`, left: `${hookPoint.x}px` }
-          );
-          setTimeout(() => {
-            // spill start
-            gsap.to(`.water-tube-${sourceTubeIdx}`, {
-              transformOrigin: "top center",
-              transform: "rotate(-90deg)",
-            });
+          //   gsap.fromTo(
+          //     `.water-tube-${sourceTubeIdx}`,
+          //     { position: "fixed", zIndex: 100 },
+          //     { top: `${hookPoint.y}`, left: `${hookPoint.x}px` }
+          //   );
+          //   setTimeout(() => {
+          //     // spill start
+          //     gsap.to(`.water-tube-${sourceTubeIdx}`, {
+          //       transformOrigin: "top center",
+          //       transform: "rotate(-90deg)",
+          //     });
 
-            const selectedTubeWater = this.getTopWater(sourceTubeIdx);
-            const targetTopWater = this.getTopWater(targetTubeIdx);
+          //   this.drawWater(targetTube, selectedTubeWater.color, targetTopWater.idx + 1);
+          //   const newTopWater = this.getTopWater(targetTubeIdx);
 
+          //     // animate new water filling
+          //     gsap.fromTo(`.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`, { height: "0%" }, { height: "25%" });
+          //     // animate old water draining
+          //     gsap.to(`.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx}`, { height: "0%" });
+
+          //     // spill end
+          //     setTimeout(() => {
+          //       selectedTubeWater.element.remove();
+
+          //       gsap.to(`.water-tube-${sourceTubeIdx}`, {
+          //         transform: "rotate(0deg)",
+          //       });
+
+          //       setTimeout(() => {
+          //         // back to initial tube position
+          //         gsap.to(`.water-tube-${sourceTubeIdx}`, {
+          //           top: `${startPoint.y + 20}`,
+          //           left: `${startPoint.x}px`,
+          //         });
+
+          //         setTimeout(() => {
+          //           // end
+          //           gsap.to(`.water-tube-${sourceTubeIdx}`, {
+          //             position: "unset",
+          //             zIndex: 1,
+          //           });
+
+          //           selectedTube.classList.remove("locked");
+          //         }, 400);
+          //       }, 400);
+          //     }, 400);
+          //   }, 400);
+          let startedSpilling = false;
+          let endedSpilling = false;
+          let newTopWater = null;
+
+          const animateWaterFill = () => {
             this.drawWater(targetTube, selectedTubeWater.color, targetTopWater.idx + 1);
-            const newTopWater = this.getTopWater(targetTubeIdx);
+            newTopWater = this.getTopWater(targetTubeIdx);
 
-            // animate new water filling
-            gsap.fromTo(`.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`, { height: "0%" }, { height: "25%" });
-            // animate old water draining
-            gsap.to(`.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx}`, { height: "0%" });
+            const waterTl = gsap.timeline();
+            // new water filling
+            waterTl.fromTo(
+              `.water-tube-${targetTubeIdx} .water-${newTopWater.idx}`,
+              { height: "0%" },
+              { height: "25%" }
+            );
+            // old water draining
+            waterTl.to(`.water-tube-${sourceTubeIdx} .water-${selectedTubeWater.idx}`, { height: "0%" }, "<-=0.1");
+          };
 
-            // spill end
-            setTimeout(() => {
-              selectedTubeWater.element.remove();
+          const tubeTl = gsap.timeline({
+            onStart() {
+              console.log("start");
+              selectedTube.classList.add("locked");
+            },
+            onComplete() {
+              console.log("completed");
+              selectedTube.classList.remove("locked");
+            },
+            onUpdate: () => {
+              const elapsed = tubeTl._time / tubeTl._tDur;
+              const beginWaterChange = elapsed > 0.2 && !startedSpilling;
+              const endWaterChange = elapsed > 0.6 && !endedSpilling;
 
-              gsap.to(`.water-tube-${sourceTubeIdx}`, {
-                transform: "rotate(0deg)",
-              });
+              if (beginWaterChange) {
+                startedSpilling = true;
+                animateWaterFill();
+              }
 
-              setTimeout(() => {
-                // back to initial tube position
-                gsap.to(`.water-tube-${sourceTubeIdx}`, {
-                  top: `${startPoint.y + 20}`,
-                  left: `${startPoint.x}px`,
-                });
-
-                setTimeout(() => {
-                  // end
-                  gsap.to(`.water-tube-${sourceTubeIdx}`, {
-                    position: "unset",
-                    zIndex: 1,
-                  });
-
-                  selectedTube.classList.remove("locked");
-                }, 400);
-              }, 400);
-            }, 400);
-          }, 400);
+              if (endWaterChange) {
+                endedSpilling = true;
+                selectedTubeWater.element.remove();
+              }
+            },
+          });
+          //  move tube to target
+          tubeTl.fromTo(
+            `.water-tube-${sourceTubeIdx}`,
+            { position: "fixed", transformOrigin: "top center", zIndex: 100 },
+            { top: `${hookPoint.y}`, left: `${hookPoint.x}px`, duration: 0.5 }
+          );
+          // spill start
+          tubeTl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(-104deg)", duration: 0.75 }, ">-=0.2");
+          // spill end
+          tubeTl.to(`.water-tube-${sourceTubeIdx}`, { transform: "rotate(0deg)", duration: 0.5 }, ">");
+          // back to initial tube position
+          tubeTl.to(
+            `.water-tube-${sourceTubeIdx}`,
+            { top: `${startPoint.y + 20}`, left: `${startPoint.x}px`, duration: 0.25 },
+            ">"
+          );
+          // animation end
+          tubeTl.to(`.water-tube-${sourceTubeIdx}`, { position: "unset", zIndex: 1 }, ">");
         }
 
         /** @param selectedTubeIdx {number | null}  */
