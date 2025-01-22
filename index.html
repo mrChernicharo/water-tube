@@ -17,17 +17,31 @@
         text-align: center;
         padding-top: 200px;
       }
-      .water-tube {
+
+      .tube-container {
+        position: relative;
         display: inline-block;
+        border: 1px solid red;
+        padding: 16px;
+      }
+
+      .hook-point {
+        width: 6px;
+        height: 6px;
+        background-color: #999;
+        position: absolute;
+        left: 50%;
+        transform: translate(-50%, 0);
+        top: -42px;
+      }
+
+      .water-tube {
         width: 50px;
         height: 150px;
         border: 1px solid;
-        /* transform: rotate(180deg); */
-        margin: 16px;
       }
-
       .water-tube.selected {
-        border: 6px solid #999;
+        box-shadow: 0px 0px 24px #999;
       }
 
       .water {
@@ -56,16 +70,27 @@
         }
 
         drawTube(waters, idx) {
+          const tubeContainer = document.createElement("div");
+          tubeContainer.classList.add(`tube-container`);
+          tubeContainer.classList.add(`tube-container-${idx}`);
+          tubeContainer.dataset.idx = idx;
+
           const tube = document.createElement("div");
           tube.classList.add(`water-tube`);
           tube.classList.add(`water-tube-${idx}`);
           tube.dataset.idx = idx;
 
+          const hookPoint = document.createElement("div");
+          hookPoint.classList.add("hook-point");
+
+          tubeContainer.append(hookPoint);
+          tubeContainer.append(tube);
+
           waters.forEach((color, i) => {
             if (color) this.#drawWater(tube, color, i);
           });
 
-          this.canvas.append(tube);
+          this.canvas.append(tubeContainer);
         }
 
         #drawWater(tube, color, idx) {
@@ -90,6 +115,10 @@
           return document.querySelector(`.water-tube-${tubeIdx}`);
         }
 
+        getTubeHookPoint(tubeIdx) {
+          return document.querySelector(`.water-tube-${tubeIdx} .hook-point`);
+        }
+
         /**
          * @param tubeIdx {number}
          * @param waterIdx {number}
@@ -102,6 +131,11 @@
         /** @param selectedTubeIdx {number | null}  */
         updateSelectedTube(selectedTubeIdx) {
           this.getAllTubeElements().forEach((ele) => {
+            gsap.to(".selected", {
+              transform: "translateY(0px)",
+              duration: 0.2,
+            });
+
             const eleIdx = Number(ele.dataset.idx);
             if (selectedTubeIdx == null || eleIdx != selectedTubeIdx) {
               ele.classList.remove("selected");
@@ -109,6 +143,11 @@
             if (eleIdx == selectedTubeIdx) {
               ele.classList.add("selected");
             }
+
+            gsap.to(".selected", {
+              transform: "translateY(-20px)",
+              duration: 0.2,
+            });
           });
 
           //   const tube = this.getTubeElement(selectedTubeIdx);
@@ -132,7 +171,7 @@
           });
         }
 
-        #onTubeClick(ev) {
+        async #onTubeClick(ev) {
           const tubeEl = ev.target.closest(".water-tube");
           const tubeIdx = Number(tubeEl.dataset.idx);
 
@@ -152,7 +191,7 @@
           }
           this.view.updateSelectedTube(this.selectedTubeIdx);
           //   console.log({ ev, tubeEl, tubeIdx, v: this.view });
-          console.log(this.selectedTubeIdx);
+          //   console.log(this.selectedTubeIdx);
         }
       }
 
