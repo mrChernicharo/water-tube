@@ -76,6 +76,49 @@
     <script>
       const SPILL_DUR = 0.5;
 
+      class Game {
+        map;
+        view;
+        #selectedTubeIdx = null;
+
+        constructor(view) {
+          this.view = view;
+        }
+
+        setup(stageMap) {
+          stageMap.forEach((tubeColors, i) => {
+            console.log(tubeColors);
+            if (tubeColors.length !== 4) throw Error("bad stageMap! there's wonk in row", i);
+          });
+          this.map = stageMap;
+        }
+
+        updateMap() {
+          //   console.log("============");
+          const updatedConfig = [];
+
+          this.view.getAllTubeElements().forEach((tube, tubeIdx) => {
+            updatedConfig.push([]);
+            for (const i of [0, 1, 2, 3]) {
+              const water = this.view.getWaterElement(tube.dataset.idx, i);
+              updatedConfig[tubeIdx].push(water?.dataset?.color ?? null);
+            }
+            // console.log(updatedConfig[tubeIdx]);
+          });
+          this.map = updatedConfig;
+          console.log(JSON.stringify(this.map));
+        }
+
+        get selectedTubeIdx() {
+          return this.#selectedTubeIdx;
+        }
+
+        /** @param idx {number | null}*/
+        setSelectedTubeIdx(idx) {
+          this.#selectedTubeIdx = idx;
+        }
+      }
+
       class View {
         canvas;
 
@@ -221,12 +264,14 @@
 
             const tl = gsap.timeline({
               onStart: () => {
-                selectedTube.classList.add("spilling");
                 targetTube.classList.add("receiving");
+                selectedTube.classList.add("spilling");
+                selectedTube.style.zIndex = 100 + selectedTube.dataset.idx;
               },
               onComplete: () => {
-                selectedTube.classList.remove("spilling");
                 targetTube.classList.remove("receiving");
+                selectedTube.classList.remove("spilling");
+                selectedTube.style.zIndex = 2;
               },
               onUpdate: () => {
                 const elapsed = tl._time / tl._tDur;
@@ -239,7 +284,6 @@
                 }
                 if (endWaterChange) {
                   endedSpilling = true;
-                  // selectedTubeWater.element.remove();
                 }
               },
             });
@@ -313,22 +357,17 @@
       }
 
       class Controller {
-        #map;
         view;
-        selectedTubeIdx = null;
+        game;
 
-        constructor(stageMap) {
-          stageMap.forEach((tubeColors, i) => {
-            console.log(tubeColors);
-            if (tubeColors.length !== 4) throw Error("bad stageMap! there's wonk in row", i);
-          });
-
-          this.#map = stageMap;
+        constructor() {
           this.view = new View();
+          this.game = new Game(this.view);
         }
 
-        startGame() {
-          this.#map.forEach((tubeColors, idx) => {
+        startGame(stageMap) {
+          this.game.setup(stageMap);
+          this.game.map.forEach((tubeColors, idx) => {
             this.view.drawTube(tubeColors, idx);
             const tubeEl = this.view.getTubeElement(idx);
             tubeEl.addEventListener("click", this.#onTubeClick.bind(this));
@@ -337,7 +376,7 @@
           document.addEventListener("click", this.#onWindowClick.bind(this));
         }
 
-        canSpillWater(sourceTubeIdx, targetTubeIdx) {
+        #canSpillWater(sourceTubeIdx, targetTubeIdx) {
           const selectedTube = this.view.getTubeElement(sourceTubeIdx);
           const targetTube = this.view.getTubeElement(targetTubeIdx);
           const selectedTubeWater = this.view.getTopWater(sourceTubeIdx);
@@ -388,7 +427,7 @@
         #onWindowClick(ev) {
           const clickedTube = ev.composedPath().some((el) => el?.classList?.contains("water-tube"));
           if (!clickedTube) {
-            this.selectedTubeIdx = null;
+            this.game.setSelectedTubeIdx(null);
             this.view.handleTubeSelection(null);
           }
         }
@@ -400,46 +439,29 @@
 
           if (targetTube.classList.contains("spilling")) return;
 
-          if (this.selectedTubeIdx === null) this.selectedTubeIdx = targetTubeIdx;
+          if (this.game.selectedTubeIdx === null) this.game.setSelectedTubeIdx(targetTubeIdx);
           //
-          else if (this.selectedTubeIdx === targetTubeIdx) this.selectedTubeIdx = null;
+          else if (this.game.selectedTubeIdx === targetTubeIdx) this.game.setSelectedTubeIdx(null);
           //
-          else if (this.canSpillWater(this.selectedTubeIdx, targetTubeIdx)) {
-            const spillCount = this.#getSpillCount(this.selectedTubeIdx, targetTubeIdx);
-            this.view.performWaterSpill(this.selectedTubeIdx, targetTubeIdx, spillCount);
-            this.selectedTubeIdx = null;
+          else if (this.#canSpillWater(this.game.selectedTubeIdx, targetTubeIdx)) {
+            const spillCount = this.#getSpillCount(this.game.selectedTubeIdx, targetTubeIdx);
+            this.view.performWaterSpill(this.game.selectedTubeIdx, targetTubeIdx, spillCount);
+            this.game.setSelectedTubeIdx(null);
 
             setTimeout(() => {
-              this.#updateStageConfig();
+              this.game.updateMap();
             }, 2000);
           }
           //
           else {
-            this.selectedTubeIdx = targetTubeIdx;
+            this.game.setSelectedTubeIdx(targetTubeIdx);
           }
-
-          //   console.log("onTubeClick", this.selectedTubeIdx);
-          this.view.handleTubeSelection(this.selectedTubeIdx);
-        }
-
-        #updateStageConfig() {
-          //   console.log("============");
-          const updatedConfig = [];
-
-          this.view.getAllTubeElements().forEach((tube, tubeIdx) => {
-            updatedConfig.push([]);
-            for (const i of [0, 1, 2, 3]) {
-              const water = this.view.getWaterElement(tube.dataset.idx, i);
-              updatedConfig[tubeIdx].push(water?.dataset?.color ?? null);
-            }
-            // console.log(updatedConfig[tubeIdx]);
-          });
-          this.#map = updatedConfig;
-          console.log(JSON.stringify(this.#map));
+          //   console.log("onTubeClick", this.game.selectedTubeIdx);
+          this.view.handleTubeSelection(this.game.selectedTubeIdx);
         }
       }
 
-      const controller = new Controller([
+      const stage01 = [
         ["red", "blue", "red", null],
         ["purple", "orange", null, null],
         ["orange", "orange", null, null],
@@ -448,9 +470,22 @@
         ["blue", "green", "blue", null],
         ["purple", "orange", "purple", null],
         ["purple", null, null, null],
-      ]);
+      ];
 
-      controller.startGame();
+      const stage02 = [
+        ["red", "blue", "red", null],
+        ["purple", "orange", null, null],
+        ["orange", "orange", null, null],
+        ["green", null, null, null],
+        ["green", "blue", "green", "red"],
+        ["blue", "green", "red", null],
+        ["blue", "purple", "orange", "purple"],
+        ["purple", null, null, null],
+      ];
+
+      const controller = new Controller();
+
+      controller.startGame(stage02);
     </script>
   </body>
 </html>
