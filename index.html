@@ -22,7 +22,7 @@
       .tube-container {
         position: relative;
         /* border: 1px solid red; */
-        padding: 16px;
+        padding: 32px 16px;
         width: 50px;
         height: 150px;
         flex-shrink: 0;
@@ -52,6 +52,7 @@
         position: absolute;
         left: 50%;
         transform: translate(-50%, -40px);
+        z-index: 4;
         /* top: -42px; */
       }
       .water {
@@ -93,20 +94,20 @@
           this.map = stageMap;
         }
 
-        updateMap() {
+        updateMapModel() {
           //   console.log("============");
-          const updatedConfig = [];
+          const updatedMap = [];
 
           this.view.getAllTubeElements().forEach((tube, tubeIdx) => {
-            updatedConfig.push([]);
+            updatedMap.push([]);
             for (const i of [0, 1, 2, 3]) {
               const water = this.view.getWaterElement(tube.dataset.idx, i);
-              updatedConfig[tubeIdx].push(water?.dataset?.color ?? null);
+              updatedMap[tubeIdx].push(water?.dataset?.color ?? null);
             }
-            // console.log(updatedConfig[tubeIdx]);
           });
-          this.map = updatedConfig;
-          console.log(JSON.stringify(this.map));
+          this.map = updatedMap;
+
+          console.log("GAME OVER?", this.#isGameEnded(this.map));
         }
 
         get selectedTubeIdx() {
@@ -116,6 +117,131 @@
         /** @param idx {number | null}*/
         setSelectedTubeIdx(idx) {
           this.#selectedTubeIdx = idx;
+        }
+
+        findTopColor(colorRow) {
+          return [...colorRow].reverse().find(Boolean) ?? null;
+        }
+
+        // getMapAfterMove(map, move) {
+        //   const spillCount = this.getSpillCount(map, move.from, move.to);
+        //   console.log("getMapAfterMove", map, move, { spillCount });
+        //   const sourceTube = map[move.from];
+        //   const targetTube = map[move.to];
+
+        //   //   sourceTube.splice(sourceTube.filter(c => c == move.color).length)
+
+        //   return map;
+        // }
+
+        // getSpillCount(map, sourceTubeIdx, targetTubeIdx) {
+        //   const sourceTube = map[sourceTubeIdx];
+        //   const targetTube = map[targetTubeIdx];
+        //   const color = this.findTopColor(sourceTube);
+        //   const targetColor = this.findTopColor(targetTube);
+
+        //   let spillCount = 0;
+        //   let sourceColor = "";
+
+        //   //   const tubeBSpaceLeft = 3 - targetTopWater.idx;
+        //   const tubeBSpaceLeft = 4 - targetTube.filter(Boolean).length;
+        //   console.log({ tubeBSpaceLeft, targetT: targetTube.filter(Boolean) });
+
+        //   for (const color of [...targetTube.filter(Boolean)].reverse()) {
+        //     if (!sourceColor) {
+        //       sourceColor = color;
+        //       spillCount++;
+        //     } else if (spillCount < tubeBSpaceLeft) {
+        //       const tubeBIsEmpty = tubeBSpaceLeft == 4;
+        //       const areColorsEqual = targetColor === sourceColor;
+        //       if (color === sourceColor && (areColorsEqual || tubeBIsEmpty)) {
+        //         spillCount++;
+        //       } else {
+        //         break;
+        //       }
+        //     }
+        //   }
+
+        //   //   console.log("getSpillCount", { sourceTube, targetTube, color, spillCount });
+        //   return spillCount;
+        // }
+
+        #checkAvailableMoves(map) {
+          const availableMoves = [];
+          for (const [a, colorRowA] of map.entries()) {
+            const topColorA = this.findTopColor(colorRowA);
+
+            for (const [b, colorRowB] of map.entries()) {
+              if (a == b) continue;
+              const topColorB = this.findTopColor(colorRowB);
+
+              if (colorRowB.filter(Boolean).length < 4 && (topColorA == topColorB || topColorB == null)) {
+                availableMoves.push({ from: a, to: b, color: topColorA });
+              }
+            }
+          }
+          return availableMoves;
+        }
+
+        #isGameWin(map) {
+          //   console.log(JSON.stringify(this.map));
+          let isGameWin = true;
+          for (const colorRow of map) {
+            if (new Set(colorRow).size != 1) {
+              isGameWin = false;
+              break;
+            }
+          }
+          return isGameWin;
+        }
+
+        // #recurse(map, moveTree, maxRecursion = 30) {
+        //   const availableMoves = this.#checkAvailableMoves(map);
+
+        //   for (const move of availableMoves) {
+        //     maxRecursion--;
+
+        //     const { from, to, color } = move;
+
+        //     if (!moveTree[`${from}:${to}`]) {
+        //       moveTree[`${from}:${to}`] = {};
+        //     }
+
+        //     const updatedMap = this.getMapAfterMove(map, move);
+
+        //     // console.log(updatedMap, moveTree, maxRecursion);
+        //     if (this.#isGameWin(map)) {
+        //       return moveTree;
+        //     }
+        //     if (!this.#checkAvailableMoves(map).length) {
+        //       return moveTree;
+        //     }
+        //     if (maxRecursion < 0) {
+        //       return moveTree;
+        //     }
+        //     // return moveTree;
+        //     return this.#recurse(updatedMap, moveTree[`${from}:${to}`], maxRecursion);
+        //   }
+        // }
+
+        #isGameEnded(map) {
+          const gameWon = this.#isGameWin(map);
+          if (gameWon) {
+            console.log("YOU WIN!");
+            return true;
+          }
+
+          const availableMoves = this.#checkAvailableMoves(map);
+          console.log("availableMoves", availableMoves);
+          if (!availableMoves.length) {
+            console.log("YOU LOSE!");
+            return true;
+          }
+
+          //   const moves = this.#recurse(map, {});
+          //   console.log("moves:", moves);
+
+          return false;
         }
       }
 
@@ -139,6 +265,7 @@
 
           const hookPoint = document.createElement("div");
           hookPoint.classList.add("hook-point");
+          hookPoint.textContent = idx;
 
           tubeContainer.append(hookPoint);
           tubeContainer.append(tube);
@@ -233,9 +360,10 @@
             let newTopWater;
             while (count < spillCount) {
               const waterIdx = targetTopWater.idx + count + 1;
-              //   const waterIdx = targetTopWater.idx + count;
+
               if (waterIdx > 3) throw Error("invalid idx " + waterIdx);
 
+              //
               this.drawWater(targetTube, selectedTubeWater.color, waterIdx);
               newTopWater = this.getTopWater(targetTubeIdx);
 
@@ -403,8 +531,7 @@
           let sourceColor = "";
 
           const tubeBSpaceLeft = 3 - targetTopWater.idx;
-
-          console.log({ tubeBSpaceLeft });
+          //   console.log({ tubeBSpaceLeft });
 
           for (const water of [...selectedTube.children].reverse()) {
             if (!sourceColor) {
@@ -449,7 +576,7 @@
             this.game.setSelectedTubeIdx(null);
 
             setTimeout(() => {
-              this.game.updateMap();
+              this.game.updateMapModel();
             }, 2000);
           }
           //
@@ -461,7 +588,27 @@
         }
       }
 
+      const stage00 = [
+        ["red", "red", "red", "dodgerblue"],
+        ["red", null, null, null],
+        ["dodgerblue", "dodgerblue", "dodgerblue", null],
+      ];
+
       const stage01 = [
+        ["red", "red", "dodgerblue", null],
+        ["red", null, null, null],
+        ["dodgerblue", "lightgreen", null, null],
+        ["dodgerblue", "lightgreen", "lightgreen", "lightgreen"],
+        ["dodgerblue", "red", null, null],
+      ];
+      const stage02 = [
+        ["red", "red", "blue", "green"],
+        ["green", "blue", "green", "red"],
+        ["blue", "blue", "green", "red"],
+        [null, null, null, null],
+        // [null, null, null, null],
+      ];
+      const stage03 = [
         ["red", "blue", "red", null],
         ["purple", "orange", null, null],
         ["orange", "orange", null, null],
@@ -471,8 +618,7 @@
         ["purple", "orange", "purple", null],
         ["purple", null, null, null],
       ];
-
-      const stage02 = [
+      const stage04 = [
         ["red", "blue", "red", null],
         ["purple", "orange", null, null],
         ["orange", "orange", null, null],
@@ -485,7 +631,7 @@
 
       const controller = new Controller();
 
-      controller.startGame(stage02);
+      controller.startGame(stage01);
     </script>
   </body>
 </html>
