@@ -76,6 +76,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
     <script>
       const SPILL_DUR = 0.5;
+      const isLooping = () => {};
 
       class Game {
         map;
@@ -88,7 +89,7 @@
 
         setup(stageMap) {
           stageMap.forEach((tubeColors, i) => {
-            console.log(tubeColors);
+            // console.log(tubeColors);
             if (tubeColors.length !== 4) throw Error("bad stageMap! there's wonk in row", i);
           });
           this.map = stageMap;
@@ -123,50 +124,124 @@
           return [...colorRow].reverse().find(Boolean) ?? null;
         }
 
-        // getMapAfterMove(map, move) {
-        //   const spillCount = this.getSpillCount(map, move.from, move.to);
-        //   console.log("getMapAfterMove", map, move, { spillCount });
-        //   const sourceTube = map[move.from];
-        //   const targetTube = map[move.to];
+        getSpillCount(tubeA, tubeB) {
+          const targetColor = tubeB.filter((color) => color != null).at(-1);
 
-        //   //   sourceTube.splice(sourceTube.filter(c => c == move.color).length)
+          let currColorA = null;
+          let ASpillPotential = 0;
+          for (const [i, color] of tubeA.entries()) {
+            if (!color) continue;
 
-        //   return map;
-        // }
+            if (color == targetColor || targetColor == null) {
+              if (color != currColorA) {
+                currColorA = color;
+                ASpillPotential = 1;
+              } else {
+                ASpillPotential++;
+              }
+            } else {
+              ASpillPotential = 0;
+            }
+          }
 
-        // getSpillCount(map, sourceTubeIdx, targetTubeIdx) {
-        //   const sourceTube = map[sourceTubeIdx];
-        //   const targetTube = map[targetTubeIdx];
-        //   const color = this.findTopColor(sourceTube);
-        //   const targetColor = this.findTopColor(targetTube);
+          const BCapacity = tubeB.filter((color) => !color).length;
+          const spillCount = Math.min(ASpillPotential, BCapacity);
+          // console.log("A", tubeA, { ASpillPotential });
+          // console.log("B", tubeB, { BCapacity, targetColor, spillCount });
+          return spillCount;
+        }
 
-        //   let spillCount = 0;
-        //   let sourceColor = "";
+        performWaterSpill(tubeA, tubeB) {
+          const targetColor = tubeA.filter((color) => color != null).at(-1);
 
-        //   //   const tubeBSpaceLeft = 3 - targetTopWater.idx;
-        //   const tubeBSpaceLeft = 4 - targetTube.filter(Boolean).length;
-        //   console.log({ tubeBSpaceLeft, targetT: targetTube.filter(Boolean) });
+          const spillCount = this.getSpillCount(tubeA, tubeB);
 
-        //   for (const color of [...targetTube.filter(Boolean)].reverse()) {
-        //     if (!sourceColor) {
-        //       sourceColor = color;
-        //       spillCount++;
-        //     } else if (spillCount < tubeBSpaceLeft) {
-        //       const tubeBIsEmpty = tubeBSpaceLeft == 4;
-        //       const areColorsEqual = targetColor === sourceColor;
-        //       if (color === sourceColor && (areColorsEqual || tubeBIsEmpty)) {
-        //         spillCount++;
-        //       } else {
-        //         break;
-        //       }
-        //     }
-        //   }
+          // console.log("==========================");
+          // console.log("A", tubeA);
+          // console.log("B", tubeB, "\n", { spillCount });
 
-        //   //   console.log("getSpillCount", { sourceTube, targetTube, color, spillCount });
-        //   return spillCount;
-        // }
+          const resA = [];
+          let removeCount = spillCount;
+          for (let i = 3; i >= 0; i--) {
+            const color = tubeA[i];
+            resA[i] = color;
+            if (color && removeCount > 0) {
+              removeCount--;
+              resA[i] = null;
+            }
+          }
 
-        #checkAvailableMoves(map) {
+          const resB = [];
+          let insertCount = spillCount;
+          for (let i = 0; i < 4; i++) {
+            const color = tubeB[i];
+            resB.push(color);
+
+            if (!color && insertCount > 0) {
+              insertCount--;
+              resB[i] = targetColor;
+            }
+          }
+
+          // console.log("res ->", "A", resA);
+          // console.log("res ->", "B", resB);
+          return { tubeA: resA, tubeB: resB };
+        }
+
+        getMapAfterMove(map, move) {
+          const tA = map[move.from];
+          const tB = map[move.to];
+          const spillCount = this.getSpillCount(tA, tB);
+
+          // console.log("==========================");
+          // console.log("getMapAfterMove", tA, tB);
+          // console.log(move, { spillCount });
+
+          const { tubeA, tubeB } = this.performWaterSpill(tA, tB);
+
+          const updatedMap = [...map];
+          updatedMap[move.from] = tubeA;
+          updatedMap[move.to] = tubeB;
+
+          // console.log(tubeA, tubeB);
+          // console.log(JSON.stringify(map), "\n\n", JSON.stringify(updatedMap));
+
+          return updatedMap;
+        }
+
+        #isGameEnded(map) {
+          const gameWon = this.#isGameWin(map);
+          if (gameWon) {
+            console.log("YOU WIN!");
+            return true;
+          }
+
+          const availableMoves = this.checkAvailableMoves(map);
+          // console.log("availableMoves", availableMoves);
+          if (!availableMoves.length) {
+            console.log("YOU LOSE!");
+            return true;
+          }
+
+          const moves = this.#recurse(map, {});
+          console.log("MOVES:", moves);
+
+          return false;
+        }
+
+        #isGameWin(map) {
+          //   console.log(JSON.stringify(this.map));
+          let isGameWin = true;
+          for (const colorRow of map) {
+            if (new Set(colorRow).size != 1) {
+              isGameWin = false;
+              break;
+            }
+          }
+          return isGameWin;
+        }
+
+        checkAvailableMoves(map) {
           const availableMoves = [];
           for (const [a, colorRowA] of map.entries()) {
             const topColorA = this.findTopColor(colorRowA);
@@ -183,65 +258,50 @@
           return availableMoves;
         }
 
-        #isGameWin(map) {
-          //   console.log(JSON.stringify(this.map));
-          let isGameWin = true;
-          for (const colorRow of map) {
-            if (new Set(colorRow).size != 1) {
-              isGameWin = false;
-              break;
+        #recurse(map, moveTree, maxRecursion = 6) {
+          const availableMoves = this.checkAvailableMoves(map);
+
+          for (const move of availableMoves) {
+            if (moveTree == "OK") break;
+
+            const updatedMap = this.getMapAfterMove(map, move);
+            const moveMoves = this.checkAvailableMoves(updatedMap);
+
+            if (!moveTree[`${move.from}:${move.to}`]) moveTree[`${move.from}:${move.to}`] = {};
+
+            // console.log("recurse", { maxRecursion }, move, moveTree);
+
+            if (this.#isGameWin(updatedMap) || moveMoves.length == 0 || maxRecursion <= 0 || isLooping()) {
+              moveTree[`${move.from}:${move.to}`] = "OK";
             }
+
+            this.#recurse(updatedMap, moveTree[`${move.from}:${move.to}`], maxRecursion - 1);
           }
-          return isGameWin;
+
+          return moveTree;
         }
 
-        // #recurse(map, moveTree, maxRecursion = 30) {
-        //   const availableMoves = this.#checkAvailableMoves(map);
+        #recurse2(map, moveTree, maxRecursion = 6) {
+          const availableMoves = this.checkAvailableMoves(map);
 
-        //   for (const move of availableMoves) {
-        //     maxRecursion--;
+          for (const move of availableMoves) {
+            if (moveTree == "OK") break;
 
-        //     const { from, to, color } = move;
+            const updatedMap = this.getMapAfterMove(map, move);
+            const moveMoves = this.checkAvailableMoves(updatedMap);
 
-        //     if (!moveTree[`${from}:${to}`]) {
-        //       moveTree[`${from}:${to}`] = {};
-        //     }
+            if (!moveTree[`${move.from}:${move.to}`]) moveTree[`${move.from}:${move.to}`] = {};
 
-        //     const updatedMap = this.getMapAfterMove(map, move);
+            // console.log("recurse", { maxRecursion }, move, moveTree);
 
-        //     // console.log(updatedMap, moveTree, maxRecursion);
-        //     if (this.#isGameWin(map)) {
-        //       return moveTree;
-        //     }
-        //     if (!this.#checkAvailableMoves(map).length) {
-        //       return moveTree;
-        //     }
-        //     if (maxRecursion < 0) {
-        //       return moveTree;
-        //     }
-        //     // return moveTree;
-        //     return this.#recurse(updatedMap, moveTree[`${from}:${to}`], maxRecursion);
-        //   }
-        // }
+            if (this.#isGameWin(updatedMap) || moveMoves.length == 0 || maxRecursion <= 0 || isLooping()) {
+              moveTree[`${move.from}:${move.to}`] = "OK";
+            }
 
-        #isGameEnded(map) {
-          const gameWon = this.#isGameWin(map);
-          if (gameWon) {
-            console.log("YOU WIN!");
-            return true;
+            this.#recurse(updatedMap, moveTree[`${move.from}:${move.to}`], maxRecursion - 1);
           }
 
-          const availableMoves = this.#checkAvailableMoves(map);
-          console.log("availableMoves", availableMoves);
-          if (!availableMoves.length) {
-            console.log("YOU LOSE!");
-            return true;
-          }
-
-          //   const moves = this.#recurse(map, {});
-          //   console.log("moves:", moves);
-
-          return false;
+          return moveTree;
         }
       }
 
@@ -345,11 +405,11 @@
             const waterTl = gsap.timeline({
               defaults: { ease: "linear" },
               onComplete: () => {
-                console.log("animateWaterSwap ::: complete");
+                // console.log("animateWaterSwap ::: complete");
                 let count = 0;
                 while (count < spillCount) {
                   const topWater = this.getTopWater(sourceTubeIdx);
-                  console.log(topWater);
+                  // console.log(topWater);
                   topWater.element.remove();
                   count++;
                 }
@@ -493,6 +553,7 @@
           this.game = new Game(this.view);
         }
 
+        // prettier-ignore
         startGame(stageMap) {
           this.game.setup(stageMap);
           this.game.map.forEach((tubeColors, idx) => {
@@ -502,6 +563,15 @@
           });
 
           document.addEventListener("click", this.#onWindowClick.bind(this));
+          console.clear()
+
+          // const availableMoves = this.game.checkAvailableMoves(this.game.map);
+          // availableMoves.forEach(move => {
+          //   this.game.getMapAfterMove(this.game.map, move)
+          // });
+
+
+
         }
 
         #canSpillWater(sourceTubeIdx, targetTubeIdx) {
@@ -595,18 +665,18 @@
       ];
 
       const stage01 = [
-        ["red", "red", "dodgerblue", null],
-        ["red", null, null, null],
-        ["dodgerblue", "lightgreen", null, null],
-        ["dodgerblue", "lightgreen", "lightgreen", "lightgreen"],
-        ["dodgerblue", "red", null, null],
-      ];
-      const stage02 = [
         ["red", "red", "blue", "green"],
         ["green", "blue", "green", "red"],
         ["blue", "blue", "green", "red"],
         [null, null, null, null],
         // [null, null, null, null],
+      ];
+      const stage02 = [
+        ["red", "red", "dodgerblue", null],
+        ["red", null, null, null],
+        ["dodgerblue", "lightgreen", null, null],
+        ["dodgerblue", "lightgreen", "lightgreen", "lightgreen"],
+        ["dodgerblue", "red", null, null],
       ];
       const stage03 = [
         ["red", "blue", "red", null],
@@ -631,7 +701,7 @@
 
       const controller = new Controller();
 
-      controller.startGame(stage01);
+      controller.startGame(stage02);
     </script>
   </body>
 </html>
