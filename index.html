@@ -223,7 +223,9 @@
             return true;
           }
 
-          const moves = this.#recurse(map, {});
+          // const moves = this.#recurse(map, {});
+          // const moves = this.#recurse2(map);
+          const moves = this.#recurse3(map);
           console.log("MOVES:", moves);
 
           return false;
@@ -281,24 +283,53 @@
           return moveTree;
         }
 
-        #recurse2(map, moveTree, maxRecursion = 6) {
+        #recurse2(map, moveTree = { parent: null, done: false }, parent = null, maxRecursion = 6) {
           const availableMoves = this.checkAvailableMoves(map);
 
           for (const move of availableMoves) {
-            if (moveTree == "OK") break;
+            if (moveTree.done) break;
 
             const updatedMap = this.getMapAfterMove(map, move);
             const moveMoves = this.checkAvailableMoves(updatedMap);
 
-            if (!moveTree[`${move.from}:${move.to}`]) moveTree[`${move.from}:${move.to}`] = {};
+            if (!moveTree[`${move.from}:${move.to}`])
+              moveTree[`${move.from}:${move.to}`] = {
+                parent: `${move.from}:${move.to}`,
+                done: false,
+              };
 
-            // console.log("recurse", { maxRecursion }, move, moveTree);
+            console.log("recurse", { maxRecursion, move, moveTree });
 
             if (this.#isGameWin(updatedMap) || moveMoves.length == 0 || maxRecursion <= 0 || isLooping()) {
-              moveTree[`${move.from}:${move.to}`] = "OK";
+              moveTree[`${move.from}:${move.to}`].done = true;
             }
 
-            this.#recurse(updatedMap, moveTree[`${move.from}:${move.to}`], maxRecursion - 1);
+            this.#recurse2(
+              updatedMap,
+              moveTree[`${move.from}:${move.to}`],
+              `${move.from}:${move.to}`,
+              maxRecursion - 1
+            );
+          }
+
+          return moveTree;
+        }
+
+        #recurse3(map, moveTree = { moves: [] }, parent = null, maxRecursion = 6) {
+          const availableMoves = this.checkAvailableMoves(map);
+
+          for (const move of availableMoves) {
+            const updatedMap = this.getMapAfterMove(map, move);
+            // const moveMoves = this.checkAvailableMoves(updatedMap);
+
+            const newTree = { parent, move: `${move.from}-${move.to}`, moves: [] };
+            moveTree.moves.push(newTree);
+
+            if (this.#isGameWin(updatedMap) || maxRecursion <= 0) {
+              break;
+            }
+
+            this.#recurse3(updatedMap, newTree, `${move.from}-${move.to}`, maxRecursion - 1);
           }
 
           return moveTree;
@@ -701,7 +732,7 @@
 
       const controller = new Controller();
 
-      controller.startGame(stage02);
+      controller.startGame(stage01);
     </script>
   </body>
 </html>
