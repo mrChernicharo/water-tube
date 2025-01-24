@@ -76,7 +76,7 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
     <script>
       const SPILL_DUR = 0.5;
-      const isLooping = () => {};
+      const isLooping = (move) => {};
 
       class Game {
         map;
@@ -225,7 +225,8 @@
 
           // const moves = this.#recurse(map, {});
           // const moves = this.#recurse2(map);
-          const moves = this.#recurse3(map);
+          // const moves = this.#recurse3(map);
+          const moves = this.#recurse4(map);
           console.log("MOVES:", moves);
 
           return false;
@@ -330,6 +331,31 @@
             }
 
             this.#recurse3(updatedMap, newTree, `${move.from}-${move.to}`, maxRecursion - 1);
+          }
+
+          return moveTree;
+        }
+
+        #recurse4(map, moveTree = { move: null, moves: [] }, parent = null, maxRecursion = 6) {
+          const availableMoves = this.checkAvailableMoves(map);
+
+          for (const move of availableMoves) {
+            const updatedMap = this.getMapAfterMove(map, move);
+            // const moveMoves = this.checkAvailableMoves(updatedMap);
+
+            const newTree = {
+              parent,
+              move: `${move.from}-${move.to}`,
+              moves: [],
+              ...(parent == `${move.to}-${move.from}` && { isLooping: true }),
+            };
+            moveTree.moves.push(newTree);
+
+            if (this.#isGameWin(updatedMap) || maxRecursion <= 0 || newTree.isLooping) {
+              break;
+            }
+
+            this.#recurse4(updatedMap, newTree, `${move.from}-${move.to}`, maxRecursion - 1);
           }
 
           return moveTree;
